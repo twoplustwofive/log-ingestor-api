@@ -39,3 +39,67 @@ export const generateRandomLogData = (timestamp?: string) => {
     },
   };
 };
+
+type DefaultOperatorName =
+  | '='
+  | '!='
+  | '<'
+  | '>'
+  | '<='
+  | '>='
+  | 'contains'
+  | 'beginsWith'
+  | 'endsWith'
+  | 'doesNotContain'
+  | 'doesNotBeginWith'
+  | 'doesNotEndWith'
+  | 'null'
+  | 'notNull'
+  | 'in'
+  | 'notIn'
+  | 'between'
+  | 'notBetween';
+
+export const getRegexForOperator = (
+  value: string,
+  operator: DefaultOperatorName,
+): RegExp => {
+  const escapedValue = escapeRegex(value);
+
+  switch (operator) {
+    case '=':
+      return new RegExp(`^${escapedValue}$`);
+    case '!=':
+      return new RegExp(`^(?!${escapedValue}$).*$`);
+    case '<':
+      return new RegExp(`^(?![\\s\\S]*${escapedValue}$).*$`);
+    case '>':
+      return new RegExp(`^(?![\\s\\S]*${escapedValue}$).*${escapedValue}.*$`);
+    case '<=':
+      return new RegExp(`^(?![\\s\\S]*${escapedValue}$).*${escapedValue}$`);
+    case '>=':
+      return new RegExp(`^${escapedValue}.*$`);
+    case 'contains':
+      return new RegExp(escapedValue.replace(/\s+/g, '').split('').join('.*'));
+    case 'beginsWith':
+      return new RegExp(`^${escapedValue}`);
+    case 'endsWith':
+      return new RegExp(`${escapedValue}$`);
+    case 'doesNotContain':
+      return new RegExp(`^(?!.*${escapedValue}).*$`);
+    case 'doesNotBeginWith':
+      return new RegExp(`^(?!${escapedValue}).*$`);
+    case 'doesNotEndWith':
+      return new RegExp(`^.*(?<!${escapedValue})$`);
+    case 'null':
+      return new RegExp(`^$`);
+    case 'notNull':
+      return new RegExp(`^(?!$)`);
+    default:
+      return new RegExp(escapedValue);
+  }
+};
+
+export const escapeRegex = (text: string): string => {
+  return (text || '').replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+};

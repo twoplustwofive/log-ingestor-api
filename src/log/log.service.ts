@@ -1,45 +1,18 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { LogDto } from './dto/log.dto';
 import { Log } from './schemas/log.schema';
-import { generateRandomLogData } from '../common/util';
+import { generateRandomLogData, getRegexForOperator } from '../common/util';
 
 @Injectable()
 export class LogService {
   constructor(@InjectModel(Log.name) private readonly logModel: Model<Log>) {}
 
-  create(logDto: LogDto) {
-    const createdLog = new this.logModel(logDto);
-    return createdLog.save();
-  }
-
-  async getLogs(filters: any): Promise<Log[]> {
+  private generateFilter(filters: any): any {
     const filter: any = {};
-    const paginationOptions = {
-      pageCount: filters.pageCount || 10,
-      pageNumber: filters.pageNumber || 1,
-    };
-
     const regexOptions = 'i';
-
-    if (filters.level) {
-      filter.level = {
-        $regex: new RegExp(escapeRegex(filters.level), regexOptions),
-      };
-    }
-
-    if (filters.message) {
-      filter.message = {
-        $regex: new RegExp(escapeRegex(filters.message), regexOptions),
-      };
-    }
-
-    if (filters.resourceId) {
-      filter.resourceId = {
-        $regex: new RegExp(escapeRegex(filters.resourceId), regexOptions),
-      };
-    }
+    const logicalOperator = filters.combinator === 'or' ? '$or' : '$and';
 
     if (filters.startTime) {
       filter.timestamp = { $gte: filters.startTime };
@@ -49,29 +22,82 @@ export class LogService {
       filter.timestamp = { ...(filter.timestamp || {}), $lte: filters.endTime };
     }
 
-    if (filters.traceId) {
-      filter.traceId = {
-        $regex: new RegExp(escapeRegex(filters.traceId), regexOptions),
-      };
-    }
+    filter[logicalOperator] = [
+      {
+        level: {
+          $regex: new RegExp(
+            getRegexForOperator(filters.level, filters.levelOperator),
+            regexOptions,
+          ),
+        },
+      },
+      {
+        message: {
+          $regex: new RegExp(
+            getRegexForOperator(filters.message, filters.messageOperator),
+            regexOptions,
+          ),
+        },
+      },
+      {
+        resourceId: {
+          $regex: new RegExp(
+            getRegexForOperator(filters.resourceId, filters.resourceIdOperator),
+            regexOptions,
+          ),
+        },
+      },
+      {
+        traceId: {
+          $regex: new RegExp(
+            getRegexForOperator(filters.traceId, filters.traceIdOperator),
+            regexOptions,
+          ),
+        },
+      },
+      {
+        spanId: {
+          $regex: new RegExp(
+            getRegexForOperator(filters.spanId, filters.spanIdOperator),
+            regexOptions,
+          ),
+        },
+      },
+      {
+        commit: {
+          $regex: new RegExp(
+            getRegexForOperator(filters.commit, filters.commitOperator),
+            regexOptions,
+          ),
+        },
+      },
+      {
+        'metadata.parentResourceId': {
+          $regex: new RegExp(
+            getRegexForOperator(
+              filters.parentResourceId,
+              filters.parentResourceIdOperator,
+            ),
+            regexOptions,
+          ),
+        },
+      },
+    ];
+    return filter;
+  }
 
-    if (filters.spanId) {
-      filter.spanId = {
-        $regex: new RegExp(escapeRegex(filters.spanId), regexOptions),
-      };
-    }
+  create(logDto: LogDto) {
+    const createdLog = new this.logModel(logDto);
+    return createdLog.save();
+  }
 
-    if (filters.commit) {
-      filter.commit = {
-        $regex: new RegExp(escapeRegex(filters.commit), regexOptions),
-      };
-    }
+  async getLogs(filters: any): Promise<Log[]> {
+    const filter = this.generateFilter(filters);
 
-    if (filters.parentResourceId) {
-      filter['metadata.parentResourceId'] = {
-        $regex: new RegExp(escapeRegex(filters.parentResourceId), regexOptions),
-      };
-    }
+    const paginationOptions = {
+      pageCount: filters.pageCount || 10,
+      pageNumber: filters.pageNumber || 1,
+    };
 
     const logs = await this.logModel
       .find(filter)
@@ -83,59 +109,7 @@ export class LogService {
   }
 
   async getLogsCount(filters: any): Promise<number> {
-    const filter: any = {};
-
-    const regexOptions = 'i';
-
-    if (filters.level) {
-      filter.level = {
-        $regex: new RegExp(escapeRegex(filters.level), regexOptions),
-      };
-    }
-
-    if (filters.message) {
-      filter.message = {
-        $regex: new RegExp(escapeRegex(filters.message), regexOptions),
-      };
-    }
-
-    if (filters.resourceId) {
-      filter.resourceId = {
-        $regex: new RegExp(escapeRegex(filters.resourceId), regexOptions),
-      };
-    }
-
-    if (filters.startTime) {
-      filter.timestamp = { $gte: filters.startTime };
-    }
-
-    if (filters.endTime) {
-      filter.timestamp = { ...(filter.timestamp || {}), $lte: filters.endTime };
-    }
-
-    if (filters.traceId) {
-      filter.traceId = {
-        $regex: new RegExp(escapeRegex(filters.traceId), regexOptions),
-      };
-    }
-
-    if (filters.spanId) {
-      filter.spanId = {
-        $regex: new RegExp(escapeRegex(filters.spanId), regexOptions),
-      };
-    }
-
-    if (filters.commit) {
-      filter.commit = {
-        $regex: new RegExp(escapeRegex(filters.commit), regexOptions),
-      };
-    }
-
-    if (filters.parentResourceId) {
-      filter['metadata.parentResourceId'] = {
-        $regex: new RegExp(escapeRegex(filters.parentResourceId), regexOptions),
-      };
-    }
+    const filter = this.generateFilter(filters);
 
     const logsCount = await this.logModel.countDocuments(filter).exec();
 
@@ -174,8 +148,4 @@ export class LogService {
   async deleteAllLogs() {
     await this.logModel.deleteMany({});
   }
-}
-
-export function escapeRegex(text: string): string {
-  return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
 }
