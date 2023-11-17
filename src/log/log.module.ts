@@ -4,7 +4,6 @@ import { LogController } from './log.controller';
 import { LogService } from './log.service';
 import { Log, LogSchema } from './schemas/log.schema';
 import { mongooseConfig } from '../mongoose.config';
-import { ResponseBuilder } from 'src/common/response-builder.service';
 
 @Module({
   imports: [
@@ -14,6 +13,6 @@ import { ResponseBuilder } from 'src/common/response-builder.service';
     MongooseModule.forFeature([{ name: Log.name, schema: LogSchema }]),
   ],
   controllers: [LogController],
-  providers: [LogService, ResponseBuilder],
+  providers: [LogService],
 })
 export class LogModule {}

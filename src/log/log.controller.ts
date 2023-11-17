@@ -8,25 +8,23 @@ import {
   HttpStatus,
   UsePipes,
   ValidationPipe,
+  Delete,
 } from '@nestjs/common';
 import { LogDto } from './dto/log.dto';
 import { LogService } from './log.service';
-import { ResponseBuilder } from 'src/common/response-builder.service';
+import { ResponseBuilder } from '../common/response-builder.util';
 import { validate } from 'class-validator';
 
 @Controller('logs')
 @UsePipes(new ValidationPipe())
 export class LogController {
-  constructor(
-    private readonly logService: LogService,
-    private readonly responseBuilder: ResponseBuilder,
-  ) {}
+  constructor(private readonly logService: LogService) {}
 
   private async validateLogDto(logDto: LogDto) {
     const errors = await validate(logDto);
     if (errors.length > 0) {
       throw new HttpException(
-        this.responseBuilder.buildResponse(
+        ResponseBuilder.buildResponse(
           errors,
           'Validation failed',
           HttpStatus.BAD_REQUEST,
@@ -41,10 +39,10 @@ export class LogController {
     try {
       await this.validateLogDto(logDto);
 
-      await this.logService.create(logDto);
+      const log = await this.logService.create(logDto);
 
-      const response = this.responseBuilder.buildResponse(
-        null,
+      const response = ResponseBuilder.buildResponse(
+        log,
         'Log created successfully',
         HttpStatus.CREATED,
       );
@@ -59,7 +57,7 @@ export class LogController {
     try {
       const logs = await this.logService.getLogs(filters);
 
-      const response = this.responseBuilder.buildResponse(
+      const response = ResponseBuilder.buildResponse(
         logs,
         'Logs retrieved successfully',
         HttpStatus.OK,
@@ -68,5 +66,45 @@ export class LogController {
     } catch (error) {
       throw error;
     }
+  }
+
+  @Get('count')
+  async getLogsCount(@Query() filters: any) {
+    try {
+      const logsCount = await this.logService.getLogsCount(filters);
+
+      const response = ResponseBuilder.buildResponse(
+        logsCount,
+        'Log count retrieved successfully',
+        HttpStatus.OK,
+      );
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  @Post('create-batch-logs')
+  createBatchLogs() {
+    this.logService.createBatchLogsBetween2021And2022();
+
+    const response = ResponseBuilder.buildResponse(
+      null,
+      'Batch logs created successfully.',
+      HttpStatus.OK,
+    );
+    return response;
+  }
+
+  @Delete('delete-all-logs')
+  deleteAllLogs() {
+    this.logService.deleteAllLogs();
+
+    const response = ResponseBuilder.buildResponse(
+      null,
+      'All logs deleted successfully.',
+      HttpStatus.OK,
+    );
+    return response;
   }
 }
