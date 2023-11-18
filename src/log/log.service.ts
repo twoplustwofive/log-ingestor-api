@@ -3,96 +3,35 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { LogDto } from './dto/log.dto';
 import { Log } from './schemas/log.schema';
-import { generateRandomLogData, getRegexForOperator } from '../common/util';
+import { generateFilter, generateRandomLogData } from '../common/util';
+import { Cron, CronExpression } from '@nestjs/schedule';
 
 @Injectable()
 export class LogService {
   constructor(@InjectModel(Log.name) private readonly logModel: Model<Log>) {}
+  private globalQueue: LogDto[] = [];
 
-  private generateFilter(filters: any): any {
-    const filter: any = {};
-    const regexOptions = 'i';
-    const logicalOperator = filters.combinator === 'or' ? '$or' : '$and';
+  addToGlobalQueue(logDto: any) {
+    this.globalQueue.push(logDto);
+  }
 
-    if (filters.startTime) {
-      filter.timestamp = { $gte: filters.startTime };
+  @Cron(CronExpression.EVERY_SECOND)
+  async processGlobalQueue() {
+    const batchSize = 5000;
+    const logsToProcess = this.globalQueue.splice(0, batchSize);
+
+    if (logsToProcess.length > 0) {
+      console.log(`Processing ${logsToProcess.length} logs:`, new Date());
+      await this.logModel.insertMany(logsToProcess);
     }
-
-    if (filters.endTime) {
-      filter.timestamp = { ...(filter.timestamp || {}), $lte: filters.endTime };
-    }
-
-    filter[logicalOperator] = [
-      {
-        level: {
-          $regex: new RegExp(
-            getRegexForOperator(filters.level, filters.levelOperator),
-            regexOptions,
-          ),
-        },
-      },
-      {
-        message: {
-          $regex: new RegExp(
-            getRegexForOperator(filters.message, filters.messageOperator),
-            regexOptions,
-          ),
-        },
-      },
-      {
-        resourceId: {
-          $regex: new RegExp(
-            getRegexForOperator(filters.resourceId, filters.resourceIdOperator),
-            regexOptions,
-          ),
-        },
-      },
-      {
-        traceId: {
-          $regex: new RegExp(
-            getRegexForOperator(filters.traceId, filters.traceIdOperator),
-            regexOptions,
-          ),
-        },
-      },
-      {
-        spanId: {
-          $regex: new RegExp(
-            getRegexForOperator(filters.spanId, filters.spanIdOperator),
-            regexOptions,
-          ),
-        },
-      },
-      {
-        commit: {
-          $regex: new RegExp(
-            getRegexForOperator(filters.commit, filters.commitOperator),
-            regexOptions,
-          ),
-        },
-      },
-      {
-        'metadata.parentResourceId': {
-          $regex: new RegExp(
-            getRegexForOperator(
-              filters.parentResourceId,
-              filters.parentResourceIdOperator,
-            ),
-            regexOptions,
-          ),
-        },
-      },
-    ];
-    return filter;
   }
 
   create(logDto: LogDto) {
-    const createdLog = new this.logModel(logDto);
-    return createdLog.save();
+    this.addToGlobalQueue(logDto);
   }
 
   async getLogs(filters: any): Promise<Log[]> {
-    const filter = this.generateFilter(filters);
+    const filter = generateFilter(filters);
 
     const paginationOptions = {
       pageCount: filters.pageCount || 10,
@@ -109,7 +48,7 @@ export class LogService {
   }
 
   async getLogsCount(filters: any): Promise<number> {
-    const filter = this.generateFilter(filters);
+    const filter = generateFilter(filters);
 
     const logsCount = await this.logModel.countDocuments(filter).exec();
 
@@ -124,25 +63,21 @@ export class LogService {
     await this.logModel.deleteOne({ traceId }).exec();
   }
 
-  async createBatchLogsBetween2021And2022() {
+  async createBatchLogsBetween2021And2023() {
     const startDate = new Date('2021-01-01T00:00:00Z');
-    const endDate = new Date('2022-01-01T00:00:00Z');
+    const endDate = new Date('2023-01-01T00:00:00Z');
 
     let currentTimestamp = startDate.getTime();
-    const logs = [];
 
     while (currentTimestamp < endDate.getTime()) {
       const logData = generateRandomLogData(
         new Date(currentTimestamp).toISOString(),
       );
 
-      logs.push(logData);
+      this.addToGlobalQueue(logData);
 
-      // Increment timestamp by 1 minute
       currentTimestamp += 60 * 1000;
     }
-
-    await this.logModel.insertMany(logs);
   }
 
   async deleteAllLogs() {

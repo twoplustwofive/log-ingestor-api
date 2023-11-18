@@ -1,6 +1,14 @@
 const generateRandomPrefix = () => {
-  const randomString = Math.random().toString(36).substring(2);
-  return randomString + '00000000'.substring(0, 8 - randomString.length);
+  const characters =
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let randomString = '';
+
+  for (let i = 0; i < 8; i++) {
+    const randomIndex = Math.floor(Math.random() * characters.length);
+    randomString += characters.charAt(randomIndex);
+  }
+
+  return randomString;
 };
 
 export const generateRandomLogData = (timestamp?: string) => {
@@ -9,22 +17,12 @@ export const generateRandomLogData = (timestamp?: string) => {
   const levels = ['info', 'error', 'warning'];
   const randomLevel = levels[Math.floor(Math.random() * levels.length)];
 
-  const randomResourceId = `res-${generateRandomPrefix()}-${Math.floor(
-    Math.random() * 1000,
-  )}`;
-  const randomTraceId = `trace-${generateRandomPrefix()}-${Math.floor(
-    Math.random() * 1000,
-  )}`;
-  const randomSpanId = `span-${generateRandomPrefix()}-${Math.floor(
-    Math.random() * 1000,
-  )}`;
-  const randomCommit = `commit-${generateRandomPrefix()}-${Math.floor(
-    Math.random() * 1000,
-  )}`;
-  const randomParentResourceId = `parent-${generateRandomPrefix()}-${Math.floor(
-    Math.random() * 1000,
-  )}`;
-  const randomMessage = `Test log message ${generateRandomPrefix()}`;
+  const randomResourceId = `res-${generateRandomPrefix()}`;
+  const randomTraceId = `tce-${generateRandomPrefix()}`;
+  const randomSpanId = `spn-${generateRandomPrefix()}`;
+  const randomCommit = `cmt-${generateRandomPrefix()}`;
+  const randomParentResourceId = `prt-${generateRandomPrefix()}`;
+  const randomMessage = `msg-${generateRandomPrefix()}`;
 
   return {
     level: randomLevel,
@@ -102,4 +100,115 @@ export const getRegexForOperator = (
 
 export const escapeRegex = (text: string): string => {
   return (text || '').replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+};
+
+export const generateFilter = (filters: any): any => {
+  const filter: any = {};
+  const regexOptions = 'i';
+  const logicalOperator = filters.combinator === 'or' ? '$or' : '$and';
+
+  if (filters.startTime) {
+    filter.timestamp = { $gte: filters.startTime };
+  }
+
+  if (filters.endTime) {
+    filter.timestamp = { ...(filter.timestamp || {}), $lte: filters.endTime };
+  }
+
+  if (filters.level !== undefined) {
+    filter[logicalOperator] = [
+      ...(filter[logicalOperator] || []),
+      {
+        level: {
+          $regex: new RegExp(
+            getRegexForOperator(filters.level, filters.levelOperator),
+            regexOptions,
+          ),
+        },
+      },
+    ];
+  }
+  if (filters.message !== undefined) {
+    filter[logicalOperator] = [
+      ...(filter[logicalOperator] || []),
+      {
+        message: {
+          $regex: new RegExp(
+            getRegexForOperator(filters.message, filters.messageOperator),
+            regexOptions,
+          ),
+        },
+      },
+    ];
+  }
+  if (filters.resourceId !== undefined) {
+    filter[logicalOperator] = [
+      ...(filter[logicalOperator] || []),
+      {
+        resourceId: {
+          $regex: new RegExp(
+            getRegexForOperator(filters.resourceId, filters.resourceIdOperator),
+            regexOptions,
+          ),
+        },
+      },
+    ];
+  }
+  if (filters.traceId !== undefined) {
+    filter[logicalOperator] = [
+      ...(filter[logicalOperator] || []),
+      {
+        traceId: {
+          $regex: new RegExp(
+            getRegexForOperator(filters.traceId, filters.traceIdOperator),
+            regexOptions,
+          ),
+        },
+      },
+    ];
+  }
+  if (filters.spanId !== undefined) {
+    filter[logicalOperator] = [
+      ...(filter[logicalOperator] || []),
+      {
+        spanId: {
+          $regex: new RegExp(
+            getRegexForOperator(filters.spanId, filters.spanIdOperator),
+            regexOptions,
+          ),
+        },
+      },
+    ];
+  }
+  if (filters.commit !== undefined) {
+    filter[logicalOperator] = [
+      ...(filter[logicalOperator] || []),
+      {
+        commit: {
+          $regex: new RegExp(
+            getRegexForOperator(filters.commit, filters.commitOperator),
+            regexOptions,
+          ),
+        },
+      },
+    ];
+  }
+  if (filters.parentResourceId !== undefined) {
+    filter[logicalOperator] = [
+      ...(filter[logicalOperator] || []),
+      {
+        'metadata.parentResourceId': {
+          $regex: new RegExp(
+            getRegexForOperator(
+              filters.parentResourceId,
+              filters.parentResourceIdOperator,
+            ),
+            regexOptions,
+          ),
+        },
+      },
+    ];
+  }
+
+  return filter;
 };

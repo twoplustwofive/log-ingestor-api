@@ -85,8 +85,8 @@ export class LogController {
   }
 
   @Post('create-batch-logs')
-  createBatchLogs() {
-    this.logService.createBatchLogsBetween2021And2022();
+  async createBatchLogs() {
+    await this.logService.createBatchLogsBetween2021And2023();
 
     const response = ResponseBuilder.buildResponse(
       null,
