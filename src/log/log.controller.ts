@@ -39,7 +39,7 @@ export class LogController {
     try {
       await this.validateLogDto(logDto);
 
-      const log = await this.logService.create(logDto);
+      const log = this.logService.create(logDto);
 
       const response = ResponseBuilder.buildResponse(
         log,
